@@ -149,6 +149,7 @@
             <option value="2000">2s</option>
         </select>
         <button id="startButton" class="start">Start</button>
+        <button id="takeSnapshotButton" class="start">Take Snapshot</button>
     </div>
 
     <script>
@@ -159,12 +160,20 @@
         const responseText = document.getElementById('responseText');
         const intervalSelect = document.getElementById('intervalSelect');
         const startButton = document.getElementById('startButton');
+        const startButton = document.getElementById('takeSnapshotButton');
 
-        instructionText.value = "What do you see?"; // default instruction
+
+        instructionText.value = "Analyze this image and list: 1. All people visible with their approximate age and clothing, 2. All objects you can identify, 3. The setting/location type. Be specific and factual."; // default instruction
 
         let stream;
         let intervalId;
         let isProcessing = false;
+
+        //Debug section toggle function
+        function toggleDebugSection(){
+            const debugContent = document.getElementById('debugContent');
+            debugContent.classList.toggle('hidden');
+        }
 
         // Returns response text (string)
         async function sendChatCompletionRequest(instruction, imageBase64URL) {
@@ -175,7 +184,13 @@
                 },
                 body: JSON.stringify({
                     max_tokens: 100,
+                    temperature: 0.1,
+                    top_p: 0.9,
                     messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a precise visual analysis assistant. Provide accurate, factual descriptions of images without speculation or assumptions.'
+                        },
                         { role: 'user', content: [
                             { type: 'text', text: instruction },
                             { type: 'image_url', image_url: {
@@ -288,11 +303,12 @@
         }
 
         startButton.addEventListener('click', () => {
-            if (isProcessing) {
-                handleStop();
-            } else {
-                handleStart();
-            }
+         //   if (isProcessing) {
+         //       handleStop();
+         //   } else {
+         //       handleStart();
+         //   }
+            alert('Continuous mode is currently disabled. Use the "Take Snapshot" button instead.');
         });
 
         // Initialize camera when the page loads
