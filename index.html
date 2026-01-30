@@ -226,7 +226,7 @@
                 video.srcObject = stream;
                 await new Promise((resolve) => {
                     video.addEventListener('loadedmetadata',resolve, {once:true});
-                }
+                });
                 responseText.value = "Camera access granted. Ready to take snapshots.";
             } catch (err) {
                 console.error("Error accessing camera:", err);
@@ -252,7 +252,7 @@
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             return new Promise((resolve) => {
-                setTimeout(()=>{
+                setTimeout(() => {
                     try{
                         const dataURL = canvas.toDataURL('image/jpeg', 0.9);
                         resolve(dataURL);
@@ -316,6 +316,9 @@
             debugImage.src = imageBase64URL;
             debugImageLength.textContent = imageBase64URL.length;
             debugTimestamp.textContent = new Date().toLocaleTimeString();
+
+            console.log('Image data length:', imageBase64URL.length);
+            console.log('Image data start:', imageBase64URL.substring(0,50));
 
             try{
                 const response = await sendChatCompletionRequest(instruction, imageBase64URL);
@@ -407,3 +410,4 @@
     </script>
 </body>
 </html>
+
