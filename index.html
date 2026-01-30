@@ -126,7 +126,7 @@
         </div>
         <div>
             <label for="responseText">Response:</label><br>
-            <textarea id="responseText" style="height: 2em; width: 40em" name="Response" readonly placeholder="Run './llama.cpp-master/build/bin/llama-server -m ./models/SmolVLM-500M-Instruct-Q8_0.gguf --mmproj ./models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf --jinja' before coming here"></textarea>
+            <textarea id="responseText" style="height: 6em; width: 40em" name="Response" readonly placeholder="Run './llama.cpp-master/build/bin/llama-server -m ./models/SmolVLM-500M-Instruct-Q8_0.gguf --mmproj ./models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf --jinja' before coming here"></textarea>
         </div>
     </div>
 
@@ -160,7 +160,7 @@
         const responseText = document.getElementById('responseText');
         const intervalSelect = document.getElementById('intervalSelect');
         const startButton = document.getElementById('startButton');
-        const startButton = document.getElementById('takeSnapshotButton');
+        const takeSnapshotButton = document.getElementById('takeSnapshotButton');
 
 
         instructionText.value = "Analyze this image and list: 1. All people visible with their approximate age and clothing, 2. All objects you can identify, 3. The setting/location type. Be specific and factual."; // default instruction
@@ -183,7 +183,7 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    max_tokens: 100,
+                    max_tokens: 150,
                     temperature: 0.1,
                     top_p: 0.9,
                     messages: [
@@ -211,9 +211,23 @@
         // 1. Ask for camera permission on load
         async function initCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                if(stream){
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: {ideal:640},
+                        height: {ideal:480},
+                        facingMode:'user'
+                    }, 
+                    audio: false
+                });
+                
                 video.srcObject = stream;
-                responseText.value = "Camera access granted. Ready to start.";
+                await new Promise((resolve) => {
+                    video.addEventListener('loadedmetadata',resolve, {once:true});
+                }
+                responseText.value = "Camera access granted. Ready to take snapshots.";
             } catch (err) {
                 console.error("Error accessing camera:", err);
                 responseText.value = `Error accessing camera: ${err.name} - ${err.message}. Please ensure permissions are granted and you are on HTTPS or localhost.`;
@@ -221,7 +235,7 @@
             }
         }
 
-        function captureImage() {
+        async function captureImage() {
             if (!stream || !video.videoWidth) {
                 console.warn("Video stream not ready for capture.");
                 return null;
@@ -229,8 +243,26 @@
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
+
+            context.clearRect(0,0, canvas.width, canvas.height);
+            if(video.readyState !== video.HAVE_ENOUGH_DATA) {
+                console.warn("Video not ready for capture.");
+                return null;
+            }
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            return canvas.toDataURL('image/jpeg', 0.8); // Use JPEG for smaller size, 0.8 quality
+            
+            return new Promise((resolve) => {
+                setTimeout(()=>{
+                    try{
+                        const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                        resolve(dataURL);
+                    }
+                    catch(error){
+                        console.error('Error capturing image:', error);
+                        resolve(null);
+                    }
+                }, 50);
+            }); 
         }
 
         async function sendData() {
@@ -257,6 +289,45 @@
             } catch (error) {
                 console.error('Error sending data:', error);
                 responseText.value = `Error: ${error.message}`;
+            }
+        }
+
+        async function takeSingleSnapshot(){
+            if(takeSnapshotButton.disabled) return;
+
+            takeSnapshotButton.disabled=true;
+            takeSnapshotButton.textContent ="Processing...";
+            responseText.value = "taking snapshot...";
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const instruction = instructionText.value;
+            const imageBase64URL = await captureImage();
+
+            if(!imageBase64URL){
+                responseText.value = "Failed to capture image. Stream might not be active.";
+                takeSnapshotButton.disabled=false;
+                takeSnapshotButton.textContent="Take Snapshot";
+                return;
+            }
+
+            const debugImage = document.getElementById('debugImage');
+            const debugImageLength = document.getElementById('debugImageLength');
+            const debugTimestamp = document.getElementById('debugTimestamp');
+
+            debugImage.src = imageBase64URL;
+            debugImageLength.textContent = imageBase64URL.length;
+            debugTimestamp.textContent = new Date().toLocaleTimeString();
+
+            try{
+                const response = await sendChatCompletionRequest(instruction, imageBase64URL);
+                responseText.value = response;
+            }
+            catch(error) {
+                console.error('Error sending data: ', error);
+                responseText.value = `Error: ${error.message}`;
+            }
+            finally {
+                takeSnapshotButton.disabled=false;
+                takeSnapshotButton.textContent="Take Snapshot";
             }
         }
 
@@ -309,6 +380,15 @@
          //       handleStart();
          //   }
             alert('Continuous mode is currently disabled. Use the "Take Snapshot" button instead.');
+        });
+
+        takeSnapshotButton.addEventListener('click', () => {
+            if(!stream){
+                responseText.value = "Camera not available. Cannot take snapshot.";
+                alert("Camera not available. Please grant permissions first");
+                return;
+            }
+            takeSingleSnapshot();
         });
 
         // Initialize camera when the page loads
